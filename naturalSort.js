@@ -1,49 +1,92 @@
-/*
- * Natural Sort algorithm for Javascript - Version 0.8 - Released under MIT license
- * Author: Jim Palmer (based on chunking idea from Dave Koelle)
- */
-function naturalSort (a, b) {
-    var re = /(^([+\-]?(?:\d*)(?:\.\d*)?(?:[eE][+\-]?\d+)?)?$|^0x[\da-fA-F]+$|\d+)/g,
-        sre = /^\s+|\s+$/g,   // trim pre-post whitespace
-        snre = /\s+/g,        // normalize all whitespace to single ' ' character
-        dre = /(^([\w ]+,?[\w ]+)?[\w ]+,?[\w ]+\d+:\d+(:\d+)?[\w ]?|^\d{1,4}[\/\-]\d{1,4}[\/\-]\d{1,4}|^\w+, \w+ \d+, \d{4})/,
-        hre = /^0x[0-9a-f]+$/i,
-        ore = /^0/,
-        i = function(s) {
-            return (naturalSort.insensitive && ('' + s).toLowerCase() || '' + s).replace(sre, '');
-        },
-        // convert all to strings strip whitespace
-        x = i(a) || '',
-        y = i(b) || '',
-        // chunk/tokenize
-        xN = x.replace(re, '\0$1\0').replace(/\0$/,'').replace(/^\0/,'').split('\0'),
-        yN = y.replace(re, '\0$1\0').replace(/\0$/,'').replace(/^\0/,'').split('\0'),
-        // numeric, hex or date detection
-        xD = parseInt(x.match(hre), 16) || (xN.length !== 1 && Date.parse(x)),
-        yD = parseInt(y.match(hre), 16) || xD && y.match(dre) && Date.parse(y) || null,
-        normChunk = function(s, l) {
-            // normalize spaces; find floats not starting with '0', string or 0 if not defined (Clint Priest)
-            return (!s.match(ore) || l == 1) && parseFloat(s) || s.replace(snre, ' ').replace(sre, '') || 0;
-        },
-        oFxNcL, oFyNcL;
-    // first try and sort Hex codes or Dates
-    if (yD) {
-        if ( xD < yD ) { return -1; }
-        else if ( xD > yD ) { return 1; }
+"use strict";
+
+var _ = require("underscore");
+
+function naturalSort(a, b, asc, sa, sb) {
+  var compare = asc ? 1 : -1;
+  var re = /(^-?[0-9]+(\.?[0-9]*)[df]?e?[0-9]?$|^0x[0-9a-f]+$|[0-9]+)/gi,
+      sre = /(^[ ]*|[ ]*$)/g,
+      dre = /(^([\w ]+,?[\w ]+)?[\w ]+,?[\w ]+\d+:\d+(:\d+)?[\w ]?|^\d{1,4}[\/\-]\d{1,4}[\/\-]\d{1,4}|^\w+, \w+ \d+, \d{4})/,
+      hre = /^0x[0-9a-f]+$/i,
+      ore = /^0/,
+      i = function (s) {
+    return naturalSort.insensitive && ("" + s).toLowerCase() || "" + s;
+  },
+
+  // convert all to strings strip whitespace
+  x = i(a).replace(sre, "") || "",
+      y = i(b).replace(sre, "") || "",
+
+  // chunk/tokenize
+  xN = x.replace(re, "\u0000$1\u0000").replace(/\0$/, "").replace(/^\0/, "").split("\u0000"),
+      yN = y.replace(re, "\u0000$1\u0000").replace(/\0$/, "").replace(/^\0/, "").split("\u0000"),
+
+  // numeric, hex or date detection
+  xD = parseInt(x.match(hre)) || xN.length != 1 && x.match(dre) && Date.parse(x),
+      yD = parseInt(y.match(hre)) || xD && y.match(dre) && Date.parse(y) || null,
+      oFxNcL,
+      oFyNcL;
+  // first try and sort Hex codes or Dates
+  if (yD) if (xD < yD) {
+    return compare;
+  } else if (xD > yD) {
+    return compare;
+  } // natural sorting through split numeric strings and default strings
+  for (var cLoc = 0, numS = Math.max(xN.length, yN.length); cLoc < numS; cLoc++) {
+    // find floats not starting with '0', string or 0 if not defined (Clint Priest)
+    oFxNcL = !(xN[cLoc] || "").match(ore) && parseFloat(xN[cLoc]) || xN[cLoc] || 0;
+    oFyNcL = !(yN[cLoc] || "").match(ore) && parseFloat(yN[cLoc]) || yN[cLoc] || 0;
+    // handle numeric vs string comparison - number < string - (Kyle Adams)
+    if (isNaN(oFxNcL) !== isNaN(oFyNcL)) {
+      return isNaN(oFxNcL) ? compare : -compare;
     }
-    // natural sorting through split numeric strings and default strings
-    for(var cLoc=0, xNl = xN.length, yNl = yN.length, numS=Math.max(xNl, yNl); cLoc < numS; cLoc++) {
-        oFxNcL = normChunk(xN[cLoc] || '', xNl);
-        oFyNcL = normChunk(yN[cLoc] || '', yNl);
-        // handle numeric vs string comparison - number < string - (Kyle Adams)
-        if (isNaN(oFxNcL) !== isNaN(oFyNcL)) { return (isNaN(oFxNcL)) ? 1 : -1; }
-        // rely on string comparison if different types - i.e. '02' < 2 != '02' < '2'
-        else if (typeof oFxNcL !== typeof oFyNcL) {
-            oFxNcL += '';
-            oFyNcL += '';
-        }
-        if (oFxNcL < oFyNcL) { return -1; }
-        if (oFxNcL > oFyNcL) { return 1; }
+    // rely on string comparison if different types - i.e. '02' < 2 != '02' < '2'
+    else if (typeof oFxNcL !== typeof oFyNcL) {
+      oFxNcL += "";
+      oFyNcL += "";
     }
+    if (y === "" && asc) {
+      return -compare;
+    }if (x === "" && asc) {
+      return compare;
+    }if (oFxNcL < oFyNcL) {
+      return -compare;
+    }if (oFxNcL > oFyNcL) {
+      return compare;
+    }
+  }
+  if (sa > sb) {
+    return -compare;
+  } else if (sa === sb) {
     return 0;
-}
+  }
+  return compare;
+};
+
+var lookupIterator = function (value) {
+  if (value == null) return _.identity;
+  if (_.isFunction(value)) return value;
+  return _.property(value);
+};
+
+var natSort = function (obj, asc, iterator, secondarySort, compare, context) {
+  iterator = lookupIterator(iterator);
+  var comp = compare || naturalSort;
+  return _.pluck(_.map(obj, function (value, index, list) {
+    return {
+      value: value,
+      index: index,
+      criteria: iterator.call(context, value, index, list)
+    };
+  }).sort(function (left, right) {
+    var a = left.criteria,
+        b = right.criteria,
+        sa = left.value[secondarySort],
+        sb = right.value[secondarySort];
+    return comp(a, b, asc, sa, sb);
+  }), "value");
+};
+
+module.exports = {
+  sort: natSort
+};
